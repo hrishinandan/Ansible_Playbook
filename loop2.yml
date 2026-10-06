@@ -1,0 +1,13 @@
+- name: packages in loop
+  hosts: all
+  vars:
+    packages:
+      - git
+      - wget
+      - curl
+  tasks:
+    - dnf: 
+       name: "{{ item }}"
+       state: latest
+      loop:  "{{ packages }}"
+
