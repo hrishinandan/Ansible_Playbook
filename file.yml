@@ -1,0 +1,12 @@
+- name: Creatin multiple file
+  hosts: all
+  vars: 
+    files_path:
+      - /tmp/file1.txt   
+      - /tmp/file2.txt
+      - /tmp/file3.txt
+  tasks:
+    ansible.builtin.file:
+      path: "{{ item }}"
+      state: touch
+    loop: "{{ files_path }}"
