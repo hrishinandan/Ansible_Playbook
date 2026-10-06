@@ -1,0 +1,11 @@
+- name: File Modifications
+  hosts: all
+  tasks:
+    - name: Create a folder
+      ansible.builtin.file:
+        path: /tmp/ansible-test2
+        state: directory
+    - name: Create a file with content
+      ansible.builtin.copy:
+        content: "Faaaahhhhhh"
+        dest: /tmp/ansible-test2/note.txt 
