@@ -1,0 +1,23 @@
+- name: loops
+  hosts: all
+  vars:
+    users:
+      - bob
+      - alice
+      - john
+    packages:
+     - git
+     - wget
+     - curl
+  
+  tasks:
+    - user:
+        name: "{{ item }}"
+        state: present
+      loop: "{{ users }}"
+
+    - dnf:
+        name: "{{ item }}"
+        state: present
+      loop: "{{ packages }}"
+
