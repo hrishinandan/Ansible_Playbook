@@ -1,0 +1,16 @@
+---
+- name: add multiple lines to a file
+  hosts: all
+  vars:
+    Lines:
+      - "Line one"
+      - "Line two"
+      - "Line three"
+  tasks:
+    - name: add multiple name
+      ansible.builtin.lineinfile:
+        path: /tmp/demo.txt
+        line: "{{ item }}"
+        create: yes
+      loop: "{{ Lines }}" 
+
