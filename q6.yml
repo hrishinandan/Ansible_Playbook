@@ -1,0 +1,22 @@
+- name: Create a user only if it doessn't exit
+  hosts: all
+  vars:
+    user: hrishi
+  tasks:
+    - name: Check whether the user exists
+      getent:
+        database: passwd
+        key: hrishi
+      register: user_check
+      ignore_errors: yes 
+    
+    
+    
+    
+    
+    
+    - name: create user
+      ansible.builtin.user:
+        name: hrishi
+        state: present
+      when: user_check.failed
