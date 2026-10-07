@@ -1,0 +1,13 @@
+- name: Package installion condition
+  hosts: all
+  vars:
+    package: apache2
+  tasks:
+    - name: install debain only on debian
+      ansible.builtin.dnf:
+        name: "{{ package }}"
+        state: present
+      when: ansible_os_family == "Debian" 
+
+
+
