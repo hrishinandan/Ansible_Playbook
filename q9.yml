@@ -1,0 +1,18 @@
+- name: create user conditionaly
+  hosts: all
+
+  vars:
+    users:
+      - name: test1
+        create: true
+      - name: test2
+        create: false
+      - name: test3
+        create: true
+  tasks:
+    - name: loop around users
+      ansible.built.user:
+        name: "{{ users }}"
+        state: present
+      loop: "{{ users }}"
+        when: users is true
