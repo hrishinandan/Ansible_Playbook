@@ -1,0 +1,27 @@
+
+
+- name: Variable conditions
+  hosts: all
+  vars:
+    username: nifa
+    spcl_user: user
+    create_user: true
+  tasks:
+    - name: variable checking
+      ansible.builtin.file:
+        path: /tmp/special.txt
+        state: touch
+      when: spcl_user is defined
+
+    - name: name checking
+      ansible.builtin.user:
+        name: "{{ username }}"
+        state: present
+      when: create_user == true
+
+    - name: os installation
+      ansible.builtin.dnf:
+        name: httpd
+        state: present
+      when: ansible_os_family == Redhat
+
