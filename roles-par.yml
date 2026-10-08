@@ -1,0 +1,13 @@
+
+- name: Manage timesync with 3 servers
+  hosts: all
+  vars:
+    selinux_state: enforcing
+    timesync_ntp_servers:
+      - hostname: foo.example.com
+        iburst: true
+      
+  roles:
+    - rhel-system-roles.timesync
+    - rhel-system-roles.selinux
+  

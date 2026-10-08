@@ -1,0 +1,10 @@
+- name: Firewall collection practise
+  hosts: all
+  become: true
+
+  tasks:
+    - name: Firewalld services
+      ansible.posix.firewalld:
+        service: https
+        state: enabled
+        permanent: true

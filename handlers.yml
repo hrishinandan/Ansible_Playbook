@@ -1,0 +1,34 @@
+---
+- name: Learning Handlers
+  hosts: all
+  become: true
+
+  tasks:
+    - name: Install Apache
+      ansible.builtin.dnf:
+        name: httpd
+        state: present
+
+    - name: Create webpage
+      ansible.builtin.copy:
+        content: "Hello from Hrishi!\n"
+        dest: /companyweb
+      notify: Restart Apache
+
+
+    - name: Start apache
+      ansible.builtin.service:
+        name: httpd
+        state: started
+        enabled: true
+
+  handlers:
+    - name: Restart Apache
+      ansible.builtin.service:
+        name: httpd
+        state: restarted
+
+
+
+
+  

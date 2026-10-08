@@ -1,0 +1,25 @@
+- name: learning modules
+  hosts: all
+  ignore_errors: true
+  tasks:
+    - name: fetching file
+      fetch:
+        src: /home/ansible/newFile.txt
+        dest: /home/student/
+    
+    - name: line in file
+      lineinfile:
+        path: /home/ansible/newFile.txt
+        line: "This a new line"
+
+    - name: block in a file
+      blockinfile:
+        path: /home/ansible/newFile.txt
+        block: |
+          Server my server
+          This is line@2
+          This is third line
+    - name: synchronize
+      ansible.posix.synchronize:
+        src: /home/ansible/resync.txt
+        dest: /tmp/

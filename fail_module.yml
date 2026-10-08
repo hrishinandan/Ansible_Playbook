@@ -1,0 +1,26 @@
+ 
+- name: Fail module practise
+  hosts: all
+  become: true
+
+
+  tasks:
+    - name: Check OS
+      ansible.builtin.fail:
+        msg: "This is not a Redhat  System!"
+      when: ansible_facts.os_family !=  "RedHat"
+    
+    - name: make sure package is specified
+      ansible.builtin.fail:
+        msg: "required package not installed"
+      when: required_package  is not defined
+
+
+
+
+    - name: RedHat OS
+      ansible.builtin.debug:
+        msg: " This is a Redhat system"
+
+
+

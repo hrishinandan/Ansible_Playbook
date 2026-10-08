@@ -1,0 +1,246 @@
+---
+# WordPress hosting playbook (Ubuntu 22.04 / 24.04, Apache + PHP + MariaDB)
+#
+# Prereqs on the control machine:
+#   ansible-galaxy collection install community.mysql community.general
+#
+# Run:
+#   ansible-playbook -i inventory.ini wordpress.yml --ask-vault-pass
+#
+# Store secrets with:  ansible-vault encrypt_string 'MyStrongPass' --name db_password
+
+- name: Deploy WordPress
+  hosts: all
+  become: true
+
+  vars:
+    domain: example.com
+    admin_email: admin@example.com
+
+    wp_version: latest            # or e.g. "6.6.2"
+    wp_root: "/var/www/{{ domain }}"
+
+    db_name: wordpress
+    db_user: wp_user
+    db_password: "ChangeMe-UseVault"   # override with ansible-vault
+    db_host: localhost
+    table_prefix: wp_
+
+    enable_ssl: false             # set true once DNS for `domain` points at this server
+    php_upload_max: 64M
+
+    packages:
+      - apache2
+      - mariadb-server
+      - php
+      - libapache2-mod-php
+      - php-mysql
+      - php-curl
+      - php-gd
+      - php-mbstring
+      - php-xml
+      - php-xmlrpc
+      - php-zip
+      - php-intl
+      - php-imagick
+      - python3-pymysql       # required by community.mysql modules
+      - unzip
+      - curl
+      - ufw
+      - certbot
+      - python3-certbot-apache
+
+  tasks:
+    # ---------- Packages & services ----------
+    - name: Update apt cache and install packages
+      ansible.builtin.apt:
+        name: "{{ packages }}"
+        state: present
+        update_cache: true
+        cache_valid_time: 3600
+
+    - name: Ensure Apache and MariaDB are enabled and running
+      ansible.builtin.service:
+        name: "{{ item }}"
+        state: started
+        enabled: true
+      loop:
+        - apache2
+        - mariadb
+
+    # ---------- Database ----------
+    - name: Create WordPress database
+      community.mysql.mysql_db:
+        name: "{{ db_name }}"
+        encoding: utf8mb4
+        collation: utf8mb4_unicode_ci
+        state: present
+        login_unix_socket: /run/mysqld/mysqld.sock
+
+    - name: Create WordPress database user
+      community.mysql.mysql_user:
+        name: "{{ db_user }}"
+        password: "{{ db_password }}"
+        priv: "{{ db_name }}.*:ALL"
+        host: localhost
+        state: present
+        login_unix_socket: /run/mysqld/mysqld.sock
+      no_log: true
+
+    # ---------- WordPress files ----------
+    - name: Create web root
+      ansible.builtin.file:
+        path: "{{ wp_root }}"
+        state: directory
+        owner: www-data
+        group: www-data
+        mode: "0755"
+
+    - name: Download and extract WordPress
+      ansible.builtin.unarchive:
+        src: >-
+          https://wordpress.org/{{ 'latest' if wp_version == 'latest'
+          else 'wordpress-' ~ wp_version }}.tar.gz
+        dest: "{{ wp_root }}"
+        remote_src: true
+        extra_opts: [--strip-components=1]
+        owner: www-data
+        group: www-data
+        creates: "{{ wp_root }}/wp-settings.php"
+
+    # force: false -> written once, so the generated salts (and user sessions)
+    # are not rotated on every playbook run.
+    - name: Generate wp-config.php
+      ansible.builtin.copy:
+        dest: "{{ wp_root }}/wp-config.php"
+        owner: www-data
+        group: www-data
+        mode: "0640"
+        force: false
+        content: |
+          <?php
+          define( 'DB_NAME',     '{{ db_name }}' );
+          define( 'DB_USER',     '{{ db_user }}' );
+          define( 'DB_PASSWORD', '{{ db_password }}' );
+          define( 'DB_HOST',     '{{ db_host }}' );
+          define( 'DB_CHARSET',  'utf8mb4' );
+          define( 'DB_COLLATE',  '' );
+
+          {{ lookup('ansible.builtin.url', 'https://api.wordpress.org/secret-key/1.1/salt/', split_lines=false) }}
+
+          $table_prefix = '{{ table_prefix }}';
+
+          define( 'WP_DEBUG', false );
+          define( 'DISALLOW_FILE_EDIT', true );
+          {% if enable_ssl %}
+          define( 'FORCE_SSL_ADMIN', true );
+          {% endif %}
+
+          if ( ! defined( 'ABSPATH' ) ) {
+              define( 'ABSPATH', __DIR__ . '/' );
+          }
+          require_once ABSPATH . 'wp-settings.php';
+      no_log: true
+
+    - name: Set secure ownership and permissions
+      ansible.builtin.file:
+        path: "{{ wp_root }}"
+        state: directory
+        recurse: true
+        owner: www-data
+        group: www-data
+        mode: "u=rwX,g=rX,o=rX"
+
+    - name: Restrict wp-config.php
+      ansible.builtin.file:
+        path: "{{ wp_root }}/wp-config.php"
+        mode: "0640"
+
+    # ---------- Apache ----------
+    - name: Enable Apache modules
+      community.general.apache2_module:
+        name: "{{ item }}"
+        state: present
+      loop: [rewrite, headers, ssl, expires]
+      notify: Restart Apache
+
+    - name: Create Apache virtual host
+      ansible.builtin.copy:
+        dest: "/etc/apache2/sites-available/{{ domain }}.conf"
+        mode: "0644"
+        content: |
+          <VirtualHost *:80>
+              ServerName {{ domain }}
+              ServerAlias www.{{ domain }}
+              ServerAdmin {{ admin_email }}
+              DocumentRoot {{ wp_root }}
+
+              <Directory {{ wp_root }}>
+                  Options -Indexes +FollowSymLinks
+                  AllowOverride All
+                  Require all granted
+              </Directory>
+
+              php_value upload_max_filesize {{ php_upload_max }}
+              php_value post_max_size {{ php_upload_max }}
+              php_value memory_limit 256M
+              php_value max_execution_time 300
+
+              ErrorLog ${APACHE_LOG_DIR}/{{ domain }}-error.log
+              CustomLog ${APACHE_LOG_DIR}/{{ domain }}-access.log combined
+          </VirtualHost>
+      notify: Reload Apache
+
+    - name: Enable site and disable default site
+      ansible.builtin.command: "{{ item.cmd }}"
+      args:
+        creates: "{{ item.creates | default(omit) }}"
+        removes: "{{ item.removes | default(omit) }}"
+      loop:
+        - { cmd: "a2ensite {{ domain }}.conf", creates: "/etc/apache2/sites-enabled/{{ domain }}.conf" }
+        - { cmd: "a2dissite 000-default.conf", removes: "/etc/apache2/sites-enabled/000-default.conf" }
+      notify: Reload Apache
+
+    # ---------- Firewall ----------
+    - name: Allow SSH, HTTP and HTTPS through UFW
+      community.general.ufw:
+        rule: allow
+        port: "{{ item }}"
+        proto: tcp
+      loop: ["22", "80", "443"]
+
+    - name: Enable UFW
+      community.general.ufw:
+        state: enabled
+        policy: deny
+
+    # ---------- HTTPS (Let's Encrypt) ----------
+    - name: Obtain Let's Encrypt certificate
+      ansible.builtin.command: >
+        certbot --apache --non-interactive --agree-tos --redirect
+        -m {{ admin_email }} -d {{ domain }} -d www.{{ domain }}
+      args:
+        creates: "/etc/letsencrypt/live/{{ domain }}/fullchain.pem"
+      when: enable_ssl | bool
+
+    - name: Flush handlers before final check
+      ansible.builtin.meta: flush_handlers
+
+    - name: Verify WordPress responds
+      ansible.builtin.uri:
+        url: "http://localhost/"
+        headers:
+          Host: "{{ domain }}"
+        status_code: [200, 301, 302]
+      changed_when: false
+
+  handlers:
+    - name: Reload Apache
+      ansible.builtin.service:
+        name: apache2
+        state: reloaded
+
+    - name: Restart Apache
+      ansible.builtin.service:
+        name: apache2
+        state: restarted

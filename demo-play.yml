@@ -1,0 +1,15 @@
+- name: Update config and optionally restart service
+  hosts: all
+
+  tasks:
+    - name: Copy updated nginx config to /etc
+      copy:
+        src: nginx.conf
+        dest: /etc/nginx/nginx.conf
+      become: true
+
+    - name: Restart nginx if it's currently running
+      service:
+        name: nginx
+        state: restarted
+

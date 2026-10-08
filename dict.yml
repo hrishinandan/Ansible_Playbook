@@ -1,0 +1,20 @@
+---
+- name: loop over a dictionary
+  hosts: all
+  become: yes  
+  vars:
+    users:
+      - name: test1
+        shell: /bin/bash
+      - name:  test2
+        shell: /bin/sh
+
+  tasks:
+    - name: Create user
+      ansible.builtin.user
+       name: "{{ item.name }}"
+       shell: "{{ item.shell }}"
+       state: present
+      loop: "{{ users }}"
+
+

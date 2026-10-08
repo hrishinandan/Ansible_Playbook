@@ -1,0 +1,14 @@
+- name: magic variable
+  hosts: all
+  tasks:
+    - name: Display hostname
+      ansible.builtin.debug:
+        msg: "This machine is {{ inventory_hostname }}"
+
+    - name: Display group
+      ansible.builtin.debug:
+        msg: "The group belongs to {{ groups }}"
+
+    - name: Variables of other hosts
+      ansible.builtin.debug:
+        msg: "{{ hostvars }}"
