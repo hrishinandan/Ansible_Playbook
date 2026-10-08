@@ -1,0 +1,21 @@
+---
+- name: Install  apache pkg onl when install_apache is true
+  hosts: all
+  vars:
+    install_apache: true
+  tasks:
+    - name: install apache
+      ansible.builtin.dnf:
+        name: httpd
+        state: present
+      when: install_apache
+      when: ansible_facts.os_family == "Redhat"
+    
+    - name: install apache2
+      ansible.built.dnf:
+        name: apache2
+        state: presemt
+      when: 
+        - install_apache
+        - ansible_facts.os_family == "Debian"
+     
