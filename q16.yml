@@ -1,0 +1,19 @@
+
+--- 
+- name: package installation when install is tru
+  hosts: all
+  vars:
+    pkg:
+      - name: httpd
+        install: true
+      - name: git
+        install: false
+      - name:  vim
+        install: true
+  tasks:
+    - name: Install selected pkgs
+      ansible.builtin.dnf:
+        name: "{{ item.name }}"
+        state: present
+      loop: "{{ pkg }}"
+      when: item.install
