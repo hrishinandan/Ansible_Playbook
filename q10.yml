@@ -1,0 +1,22 @@
+---
+- name: Variables
+  hosts: all
+  vars:
+    package: nginx
+    username: testuser
+    shell: /bin/bash
+    home: /home/testuser 
+  tasks:
+    - name: installing package
+      ansible.builtin.dnf:
+        name: "{{ package }}"
+        state: present
+
+    - name: creating a user
+      ansible.builtin.user:
+        name: "{{ username }}"
+        shell: /bin/bash
+        home: /home/testuser  
+        state: present
+     
+  
